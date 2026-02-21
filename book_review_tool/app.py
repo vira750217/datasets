@@ -1,6 +1,5 @@
 import io
 import json
-import os
 from dataclasses import dataclass
 from typing import List
 
@@ -102,7 +101,12 @@ def main() -> None:
         "for stronger sequencing, logical flow, timeline consistency, and bestseller potential."
     )
 
-    api_key = st.text_input("OpenAI API key", type="password", value=os.getenv("OPENAI_API_KEY", ""))
+    api_key = st.text_input(
+        "OpenAI API key",
+        type="password",
+        placeholder="sk-...",
+        help="Enter your own API key for this session. It is not pre-filled from server secrets.",
+    )
     model = st.text_input("Model", value="gpt-4.1")
 
     col1, col2 = st.columns(2)
