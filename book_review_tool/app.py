@@ -93,37 +93,54 @@ def create_output_docx(result: ReviewResult) -> bytes:
     return output.read()
 
 
-def main() -> None:
-    st.set_page_config(page_title="Book Review & Rewrite Studio", layout="wide")
-    st.title("📚 Book Review & Rewrite Studio")
-    st.write(
-        "Upload one or more Microsoft Word manuscripts (.docx). The app reviews each file and rewrites chapters "
-        "for stronger sequencing, logical flow, timeline consistency, and bestseller potential."
-    )
-
-    api_key = st.text_input(
+def render_sidebar_settings() -> tuple[str, str, str, str]:
+    st.sidebar.header("⚙️ Settings")
+    api_key = st.sidebar.text_input(
         "OpenAI API key",
         type="password",
         placeholder="sk-...",
-        help="Enter your own API key for this session. It is not pre-filled from server secrets.",
+        help="Enter your own API key for this session. The app never pre-fills server secrets.",
     )
-    model = st.text_input("Model", value="gpt-4.1")
+    model = st.sidebar.text_input("Model", value="gpt-4.1")
+    language = st.sidebar.text_input("Output language", value="English")
+    audience = st.sidebar.text_input("Target audience", value="General adult fiction readers")
+    return api_key, model, language, audience
 
-    col1, col2 = st.columns(2)
-    with col1:
-        language = st.text_input("Output language", value="English")
-    with col2:
-        audience = st.text_input("Target audience", value="General adult fiction readers")
+
+def main() -> None:
+    st.set_page_config(page_title="Book Review & Rewrite Studio", layout="wide")
+    st.title("📚 Book Review & Rewrite Studio")
+    st.caption("AI-powered manuscript editor for .docx files")
+
+    with st.expander("How to use", expanded=True):
+        st.markdown(
+            """
+1. Add your OpenAI API key and preferences in the sidebar.
+2. Upload one or more `.docx` files.
+3. Click **Review and Rewrite**.
+4. Inspect JSON outputs and download a rewritten report for each file.
+            """
+        )
+
+    api_key, model, language, audience = render_sidebar_settings()
 
     uploaded_files = st.file_uploader(
         "Upload Word files",
         type=["docx"],
         accept_multiple_files=True,
+        help="You can upload multiple manuscripts at once.",
     )
 
-    if st.button("Review and Rewrite", type="primary"):
+    if uploaded_files:
+        st.info(f"{len(uploaded_files)} file(s) selected")
+        for file in uploaded_files:
+            st.write(f"• {file.name}")
+
+    start_processing = st.button("Review and Rewrite", type="primary", use_container_width=True)
+
+    if start_processing:
         if not api_key:
-            st.error("Please provide an OpenAI API key.")
+            st.error("Please provide an OpenAI API key in the sidebar.")
             st.stop()
         if not uploaded_files:
             st.error("Please upload at least one .docx file.")
@@ -131,9 +148,13 @@ def main() -> None:
 
         client = OpenAI(api_key=api_key)
         results: List[ReviewResult] = []
+        progress = st.progress(0, text="Starting analysis...")
 
-        for file in uploaded_files:
-            with st.spinner(f"Processing {file.name}..."):
+        for index, file in enumerate(uploaded_files, start=1):
+            progress_text = f"Processing {file.name} ({index}/{len(uploaded_files)})"
+            progress.progress(index / len(uploaded_files), text=progress_text)
+
+            with st.spinner(progress_text):
                 text = extract_docx_text(file.read())
                 if not text:
                     st.warning(f"{file.name} appears empty. Skipping.")
@@ -160,6 +181,7 @@ def main() -> None:
             st.stop()
 
         st.success(f"Processed {len(results)} file(s).")
+        st.metric("Successful files", len(results))
 
         for result in results:
             st.subheader(result.filename)
@@ -175,6 +197,7 @@ def main() -> None:
                 data=out_bytes,
                 file_name=f"rewritten_{result.filename}",
                 mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                use_container_width=True,
             )
 
 
